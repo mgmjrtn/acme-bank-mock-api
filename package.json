@@ -1,0 +1,17 @@
+{
+  "name": "acme-bank-mock-api",
+  "version": "1.0.0",
+  "description": "Mock banking API for Acme Bank Cognigy Partner Enablement Lab demo.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.3"
+  }
+}
