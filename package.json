@@ -5,13 +5,15 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "db:init": "node scripts/initDb.js"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.18.3"
+    "express": "^4.18.3",
+    "pg": "^8.12.0"
   }
 }
