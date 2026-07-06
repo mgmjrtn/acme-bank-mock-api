@@ -81,7 +81,8 @@ function maskPhone(phone) {
 
   if (digits.length >= 10) {
     const last4 = digits.slice(-4);
-    const country = digits.length > 10 ? `+${digits.slice(0, digits.length - 10)} ` : "";
+    const country =
+      digits.length > 10 ? `+${digits.slice(0, digits.length - 10)} ` : "";
     return `${country}***-***-${last4}`;
   }
 
@@ -138,6 +139,7 @@ async function getCustomerById(customerId) {
     "SELECT * FROM customers WHERE customer_id = $1",
     [customerId]
   );
+
   return result.rows[0] || null;
 }
 
@@ -151,6 +153,7 @@ async function getAccountByType(customerId, accountType) {
     `,
     [customerId, normalizeAccountType(accountType)]
   );
+
   return result.rows[0] || null;
 }
 
@@ -201,6 +204,8 @@ app.get("/", (req, res) => {
     service: "Acme Bank Mock API",
     status: "ok",
     message: "Mock banking API for Cognigy Partner Enablement Lab.",
+    designNote:
+      "Read-only endpoints do not overwrite customer_activity. Only meaningful customer actions such as transfer confirmation and support escalation update persisted activity.",
     endpoints: [
       "GET /health",
       "POST /idv/verify",
@@ -220,6 +225,7 @@ app.get("/", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     const dbResult = await query("SELECT NOW() AS now");
+
     res.json({
       status: "ok",
       database: "connected",
@@ -259,21 +265,15 @@ app.post("/idv/verify", async (req, res) => {
       });
     }
 
-    await upsertActivity({
-      customerId: customer.customer_id,
-      lastIntent: "identity_verification",
-      lastActionType: "idv",
-      lastActionSummary: "Identity verification completed",
-      preferredLanguage: customer.preferred_language
-    });
-
     return res.json({
       verified: true,
       customer: publicCustomer(customer),
-      message: "Identity matched. Step-up verification may be required for protected actions."
+      message:
+        "Identity matched. Step-up verification may be required for protected actions."
     });
   } catch (error) {
     console.error("IDV verification error", error);
+
     res.status(500).json({
       verified: false,
       reason: "server_error",
@@ -310,24 +310,19 @@ app.post("/auth/start", async (req, res) => {
       [challengeId, customerId, DEMO_OTP]
     );
 
-    await upsertActivity({
-      customerId,
-      lastIntent: "start_step_up_authentication",
-      lastActionType: "auth_start",
-      lastActionSummary: `Started demo email verification to ${maskEmail(customer.email)}`,
-      preferredLanguage: customer.preferred_language
-    });
-
     return res.json({
       status: "otp_sent",
       channel: "email",
       challengeId,
       maskedEmail: maskEmail(customer.email),
       demoCode: DEMO_OTP,
-      message: `Demo email verification code sent to ${maskEmail(customer.email)}. Use ${DEMO_OTP} for this demo.`
+      message: `Demo email verification code sent to ${maskEmail(
+        customer.email
+      )}. Use ${DEMO_OTP} for this demo.`
     });
   } catch (error) {
     console.error("Auth start error", error);
+
     res.status(500).json({
       status: "error",
       message: "The verification service is temporarily unavailable."
@@ -359,7 +354,10 @@ app.post("/auth/verify", async (req, res) => {
     }
 
     if (new Date(challenge.expires_at).getTime() < Date.now()) {
-      await query("DELETE FROM otp_challenges WHERE challenge_id = $1", [challengeId]);
+      await query("DELETE FROM otp_challenges WHERE challenge_id = $1", [
+        challengeId
+      ]);
+
       return res.status(401).json({
         verified: false,
         reason: "challenge_expired",
@@ -376,15 +374,10 @@ app.post("/auth/verify", async (req, res) => {
     }
 
     const customer = await getCustomerById(challenge.customer_id);
-    await query("DELETE FROM otp_challenges WHERE challenge_id = $1", [challengeId]);
 
-    await upsertActivity({
-      customerId: customer.customer_id,
-      lastIntent: "complete_step_up_authentication",
-      lastActionType: "auth_verify",
-      lastActionSummary: "Completed demo email verification",
-      preferredLanguage: customer.preferred_language
-    });
+    await query("DELETE FROM otp_challenges WHERE challenge_id = $1", [
+      challengeId
+    ]);
 
     return res.json({
       verified: true,
@@ -394,6 +387,7 @@ app.post("/auth/verify", async (req, res) => {
     });
   } catch (error) {
     console.error("Auth verify error", error);
+
     res.status(500).json({
       verified: false,
       reason: "server_error",
@@ -418,6 +412,7 @@ app.get("/customers/:customerId/profile", async (req, res) => {
     });
   } catch (error) {
     console.error("Customer profile error", error);
+
     res.status(500).json({
       status: "error",
       message: "Customer profile service is temporarily unavailable."
@@ -462,6 +457,7 @@ app.get("/customers/:customerId/activity", async (req, res) => {
     });
   } catch (error) {
     console.error("Customer activity error", error);
+
     res.status(500).json({
       status: "error",
       message: "Customer activity service is temporarily unavailable."
@@ -490,14 +486,6 @@ app.get("/customers/:customerId/accounts", async (req, res) => {
       [req.params.customerId]
     );
 
-    await upsertActivity({
-      customerId: req.params.customerId,
-      lastIntent: "check_balance",
-      lastActionType: "balance_inquiry",
-      lastActionSummary: "Checked account balances",
-      preferredLanguage: customer.preferred_language
-    });
-
     return res.json({
       customer: publicCustomer(customer),
       accounts: accountsResult.rows.map(publicAccount),
@@ -505,6 +493,7 @@ app.get("/customers/:customerId/accounts", async (req, res) => {
     });
   } catch (error) {
     console.error("Accounts error", error);
+
     res.status(500).json({
       status: "error",
       message: "The account service is temporarily unavailable."
@@ -536,14 +525,6 @@ app.get("/customers/:customerId/transactions", async (req, res) => {
       [req.params.customerId, limit]
     );
 
-    await upsertActivity({
-      customerId: req.params.customerId,
-      lastIntent: "recent_transactions",
-      lastActionType: "transaction_lookup",
-      lastActionSummary: `Reviewed ${transactionsResult.rowCount} recent transactions`,
-      preferredLanguage: customer.preferred_language
-    });
-
     return res.json({
       customer: publicCustomer(customer),
       transactions: transactionsResult.rows.map(publicTransaction),
@@ -551,6 +532,7 @@ app.get("/customers/:customerId/transactions", async (req, res) => {
     });
   } catch (error) {
     console.error("Transactions error", error);
+
     res.status(500).json({
       status: "error",
       message: "The transaction service is temporarily unavailable."
@@ -595,7 +577,8 @@ app.post("/transfers/preview", async (req, res) => {
       return res.status(400).json({
         allowed: false,
         reason: "cd_transfer_restricted",
-        message: "CD transfers require maturity review or representative support."
+        message:
+          "CD transfers require maturity review or representative support."
       });
     }
 
@@ -647,14 +630,6 @@ app.post("/transfers/preview", async (req, res) => {
       ]
     );
 
-    await upsertActivity({
-      customerId,
-      lastIntent: "transfer_preview",
-      lastActionType: "transfer_preview",
-      lastActionSummary: `Previewed ${formatCurrency(transferAmount)} transfer from ${fromAccount.account_type} to ${toAccount.account_type}`,
-      preferredLanguage: customer.preferred_language
-    });
-
     return res.json({
       allowed: true,
       confirmationId,
@@ -671,10 +646,13 @@ app.post("/transfers/preview", async (req, res) => {
       amount: transferAmount,
       currency: "USD",
       fee: 0,
-      message: `Transfer preview approved for ${formatCurrency(transferAmount)} from ${fromAccount.account_type} to ${toAccount.account_type}.`
+      message: `Transfer preview approved for ${formatCurrency(
+        transferAmount
+      )} from ${fromAccount.account_type} to ${toAccount.account_type}.`
     });
   } catch (error) {
     console.error("Transfer preview error", error);
+
     res.status(500).json({
       allowed: false,
       reason: "server_error",
@@ -716,7 +694,10 @@ app.post("/transfers/confirm", async (req, res) => {
     }
 
     if (new Date(preview.expires_at).getTime() < Date.now()) {
-      await query("DELETE FROM transfer_previews WHERE confirmation_id = $1", [confirmationId]);
+      await query("DELETE FROM transfer_previews WHERE confirmation_id = $1", [
+        confirmationId
+      ]);
+
       return res.status(401).json({
         completed: false,
         reason: "confirmation_expired",
@@ -778,10 +759,9 @@ app.post("/transfers/confirm", async (req, res) => {
       ]
     );
 
-    await query(
-      "DELETE FROM transfer_previews WHERE confirmation_id = $1",
-      [confirmationId]
-    );
+    await query("DELETE FROM transfer_previews WHERE confirmation_id = $1", [
+      confirmationId
+    ]);
 
     await query("COMMIT");
 
@@ -791,7 +771,9 @@ app.post("/transfers/confirm", async (req, res) => {
       customerId: preview.customer_id,
       lastIntent: "transfer_confirm",
       lastActionType: "transfer",
-      lastActionSummary: `Transferred ${formatCurrency(transferAmount)} from ${preview.from_account_type} to ${preview.to_account_type}`,
+      lastActionSummary: `Transferred ${formatCurrency(transferAmount)} from ${
+        preview.from_account_type
+      } to ${preview.to_account_type}`,
       lastTransactionId: transferId,
       preferredLanguage: customer.preferred_language
     });
@@ -807,7 +789,11 @@ app.post("/transfers/confirm", async (req, res) => {
       toAccount: {
         type: preview.to_account_type
       },
-      message: `Transfer complete. ${formatCurrency(transferAmount)} moved from ${preview.from_account_type} to ${preview.to_account_type}.`
+      message: `Transfer complete. ${formatCurrency(
+        transferAmount
+      )} moved from ${preview.from_account_type} to ${
+        preview.to_account_type
+      }.`
     });
   } catch (error) {
     try {
@@ -817,6 +803,7 @@ app.post("/transfers/confirm", async (req, res) => {
     }
 
     console.error("Transfer confirm error", error);
+
     res.status(500).json({
       completed: false,
       reason: "server_error",
@@ -838,7 +825,8 @@ app.post("/support/escalate", async (req, res) => {
           customerId,
           lastIntent: "support_escalation",
           lastActionType: "escalation",
-          lastActionSummary: summary || "Customer requested representative support",
+          lastActionSummary:
+            summary || "Customer requested representative support",
           preferredLanguage: customer.preferred_language
         });
       }
@@ -854,6 +842,7 @@ app.post("/support/escalate", async (req, res) => {
     });
   } catch (error) {
     console.error("Support escalation error", error);
+
     res.status(500).json({
       escalated: false,
       reason: "server_error",
